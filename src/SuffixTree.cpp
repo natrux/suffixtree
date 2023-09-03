@@ -49,22 +49,18 @@ std::vector<size_t> SuffixTree::find(const std::string &needle) const{
 	// visit all leaves below stop
 	std::vector<size_t> result;
 	std::queue<std::shared_ptr<const Node>> todo;
-	if(stop->first_child){
-		todo.push(stop->first_child);
-	}else if(stop->parent.lock()){
-		result.push_back(stop->suffix_start);
-	}
+	todo.push(stop);
+	bool cant_be_root = false;
 	while(!todo.empty()){
 		auto current_node = todo.front();
 		todo.pop();
-		if(!current_node->first_child){
+		if(current_node->children.empty() && (cant_be_root || stop->parent.lock())){
 			result.push_back(current_node->suffix_start);
-		}else{
-			todo.push(current_node->first_child);
 		}
-		if(current_node->next_sibling){
-			todo.push(current_node->next_sibling);
+		for(const auto &entry : current_node->children){
+			todo.push(entry.second);
 		}
+		cant_be_root = true;
 	}
 	return result;
 }
@@ -76,7 +72,7 @@ bool SuffixTree::ends_with(const std::string &suffix) const{
 	size_t pos = 0;
 	const size_t end = suffix_.size();
 	auto stop = traverse_tree(suffix_, pos, end);
-	return (pos >= end && !stop->first_child && stop->parent.lock());
+	return (pos >= end && stop->children.empty() && stop->parent.lock());
 }
 
 
@@ -95,7 +91,7 @@ void SuffixTree::check_suffix_links() const{
 		auto current_node = todo.front();
 		todo.pop();
 
-		if(current_node != root && current_node->first_child){
+		if(current_node != root && !current_node->children.empty()){
 			auto linked_node = current_node->suffix_link.lock();
 			if(!linked_node){
 				throw std::runtime_error("Inner node does not have a suffix link");
@@ -110,11 +106,8 @@ void SuffixTree::check_suffix_links() const{
 				}
 			}
 		}
-		if(current_node->first_child){
-			todo.push(current_node->first_child);
-		}
-		if(current_node->next_sibling){
-			todo.push(current_node->next_sibling);
+		for(const auto &entry : current_node->children){
+			todo.push(entry.second);
 		}
 	}
 }
@@ -196,14 +189,9 @@ void SuffixTree::rebuild(){
 					//std::cout << "at node " << current_node.get() << std::endl;
 					auto new_node = std::make_shared<Node>();
 					new_node->parent = current_node;
-					new_node->next_sibling = current_node->first_child;
 					new_node->text_begin = current_position;
 					new_node->suffix_start = j;
-
-					current_node->first_child = new_node;
-					if(new_node->next_sibling){
-						new_node->next_sibling->previous_sibling = new_node;
-					}
+					current_node->children[text[current_position]] = new_node;
 				}else{
 					// stuck on the edge
 					//std::cout << "on the edge from " << current_node.get() << " to " << next_node.get() << std::endl;
@@ -215,42 +203,31 @@ void SuffixTree::rebuild(){
 					const size_t offset = next_position - current_position;
 					auto mid_node = std::make_shared<Node>();
 					mid_node->parent = next_node->parent;
-					mid_node->first_child = next_node;
-					mid_node->next_sibling = next_node->next_sibling;
-					mid_node->previous_sibling = next_node->previous_sibling;
 					mid_node->text_begin = next_node->text_begin;
 					mid_node->text_end = next_node->text_begin + offset;
 					if(mid_node->text_begin == mid_node->text_end && mid_node->text_end != 0){
 						throw std::runtime_error("mid_node text_begin == text_end == " + std::to_string(mid_node->text_begin));
 					}
-
-					if(next_node->next_sibling){
-						next_node->next_sibling->previous_sibling = mid_node;
-					}
-					if(auto previous_sibling = next_node->previous_sibling.lock()){
-						previous_sibling->next_sibling = mid_node;
-					}
 					if(auto parent = next_node->parent.lock()){
-						if(parent->first_child == next_node){
-							parent->first_child = mid_node;
-						}
+						// replaces next_node as parent's child
+						parent->children[text[next_node->text_begin]] = mid_node;
 					}else{
 						throw std::runtime_error("Node without a parent");
 					}
 
 					auto match_leaf = std::make_shared<Node>();
 					match_leaf->parent = mid_node;
-					match_leaf->previous_sibling = next_node;
 					match_leaf->text_begin = next_position;
 					match_leaf->suffix_start = j;
 
 					next_node->parent = mid_node;
-					next_node->next_sibling = match_leaf;
-					next_node->previous_sibling.reset();
 					next_node->text_begin += offset;
 					if(next_node->text_begin == next_node->text_end && next_node->text_end != 0){
 						throw std::runtime_error("next_node text_begin == text_end == " + std::to_string(next_node->text_begin));
 					}
+
+					mid_node->children[text[next_node->text_begin]] = next_node;
+					mid_node->children[text[match_leaf->text_begin]] = match_leaf;
 
 					if(link_wanted){
 						link_wanted->suffix_link = mid_node;
@@ -279,11 +256,8 @@ void SuffixTree::relabel_text_end(){
 		if(next_node->text_end == 0){
 			next_node->text_end = end_of_text;
 		}
-		if(next_node->first_child){
-			todo.push(next_node->first_child);
-		}
-		if(next_node->next_sibling){
-			todo.push(next_node->next_sibling);
+		for(const auto &entry : next_node->children){
+			todo.push(entry.second);
 		}
 	}
 }
@@ -303,14 +277,17 @@ void SuffixTree::relabel_text_end(){
  *   position is changed to denote the position of the first mismatch. If there was no mismatch it contains the next character to verify if we went all along the edge. If we ran out of characters during the edge, position == end.
  */
 std::shared_ptr<Node> SuffixTree::traverse_node(std::shared_ptr<Node> node, const std::string &find_text, size_t &position, size_t end) const{
-	std::shared_ptr<Node> next_step = node->first_child;
-	if(!next_step && node != root){
+	if(node->children.empty() && node != root){
 		// leaf
 		return nullptr;
 	}
 
-	while(next_step && text[next_step->text_begin] != find_text[position]){
-		next_step = next_step->next_sibling;
+	std::shared_ptr<Node> next_step;
+	{
+		const auto find = node->children.find(find_text[position]);
+		if(find != node->children.end()){
+			next_step = find->second;
+		}
 	}
 	if(!next_step){
 		// children present, but none suitable

@@ -47,6 +47,26 @@ static void test_substrings(const SuffixTree &tree){
 }
 
 
+static void test_not_contained(const SuffixTree &tree){
+	std::cout << "> Testing non contained substrings..." << std::endl;
+	const std::string text = tree.get_text();
+	const std::vector<std::string> substrings = {
+		"zoeglfrex",
+		"kraxlburg",
+		"qvnts",
+	};
+	for(const auto &substring : substrings){
+		const auto find = text.find(substring);
+		const std::vector<size_t> occurrences = tree.find(substring);
+		if(find == std::string::npos && !occurrences.empty()){
+			throw std::runtime_error("string " + substring + " found in tree but not in string");
+		}else if(find != std::string::npos && occurrences.empty()){
+			throw std::runtime_error("string " + substring + " found in string but not in tree");
+		}
+	}
+}
+
+
 static void test_suffix_links(const SuffixTree &tree){
 	std::cout << "> Testing suffix links..." << std::endl;
 	tree.check_suffix_links();
@@ -56,6 +76,7 @@ static void test_suffix_links(const SuffixTree &tree){
 static void test_tree(const SuffixTree &tree){
 	test_suffixes(tree);
 	test_substrings(tree);
+	test_not_contained(tree);
 	test_suffix_links(tree);
 }
 
@@ -93,6 +114,7 @@ int main(int argc, char **argv){
 		}
 	}
 	if(texts.empty()){
+		texts.push_back("");
 		texts.push_back("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 		texts.push_back("abracadabra");
 		texts.push_back("bringst du opi opium bringt opium den opi um");
