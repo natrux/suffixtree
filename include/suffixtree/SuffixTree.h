@@ -10,8 +10,12 @@
 
 class SuffixTree{
 public:
-	SuffixTree(char end_marker = 0x03);
-	SuffixTree(const std::string &text, char end_marker = 0x03);
+	SuffixTree(const std::string &text="", char end_marker=0x03);
+	SuffixTree(const SuffixTree &other);
+	SuffixTree(SuffixTree &&other);
+	SuffixTree &operator=(const SuffixTree &other);
+	SuffixTree &operator=(SuffixTree &&other);
+
 	std::string get_text() const;
 	void set_text(const std::string &text);
 

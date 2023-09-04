@@ -4,16 +4,44 @@
 #include <stdexcept>
 
 
-SuffixTree::SuffixTree(char end_marker_):
-	end_marker(end_marker_)
-{
-}
-
 
 SuffixTree::SuffixTree(const std::string &text_, char end_marker_):
 	end_marker(end_marker_)
 {
 	set_text(text_);
+}
+
+
+SuffixTree::SuffixTree(const SuffixTree &other):
+	SuffixTree(other.get_text(), other.end_marker)
+{
+}
+
+
+SuffixTree::SuffixTree(SuffixTree &&other){
+	*this = std::move(other);
+}
+
+
+SuffixTree &SuffixTree::operator=(const SuffixTree &other){
+	if(&other != this){
+		end_marker = other.end_marker;
+		set_text(other.get_text());
+	}
+	return *this;
+}
+
+
+SuffixTree &SuffixTree::operator=(SuffixTree &&other){
+	if(&other != this){
+		end_marker = std::move(other.end_marker);
+		text = std::move(other.text);
+		root = std::move(other.root);
+		end_of_text = std::move(other.end_of_text);
+		// leave other in a valid state
+		other.set_text("");
+	}
+	return *this;
 }
 
 
@@ -282,17 +310,12 @@ std::shared_ptr<Node> SuffixTree::traverse_node(std::shared_ptr<Node> node, cons
 		return nullptr;
 	}
 
-	std::shared_ptr<Node> next_step;
-	{
-		const auto find = node->children.find(find_text[position]);
-		if(find != node->children.end()){
-			next_step = find->second;
-		}
-	}
-	if(!next_step){
-		// children present, but none suitable
+	const auto find = node->children.find(find_text[position]);
+	if(find == node->children.end()){
+		// children present but none suitable
 		return node;
 	}
+	const auto next_step = find->second;
 
 	size_t offset = 0;
 	while(next_step->text_begin+offset < next_step->get_text_end(end_of_text) && position+offset < end && text[next_step->text_begin+offset] == find_text[position+offset]){

@@ -6,9 +6,8 @@
 #include <fstream>
 
 
-static void test_suffixes(const SuffixTree &tree){
+static void test_suffixes(const SuffixTree &tree, const std::string &text){
 	std::cout << "> Testing suffixes..." << std::endl;
-	const std::string text = tree.get_text();
 	for(size_t i=0; i<text.length(); i++){
 		const std::string suffix = text.substr(i, text.length()-i);
 		if(!tree.ends_with(suffix)){
@@ -18,9 +17,8 @@ static void test_suffixes(const SuffixTree &tree){
 }
 
 
-static void test_substrings(const SuffixTree &tree){
+static void test_substrings(const SuffixTree &tree, const std::string &text){
 	std::cout << "> Testing substrings..." << std::endl;
-	const std::string text = tree.get_text();
 	for(size_t i=0; i<text.length(); i++){
 		for(size_t j=i+1; j<=text.length(); j++){
 			const std::string substring = text.substr(i, j-i);
@@ -47,9 +45,8 @@ static void test_substrings(const SuffixTree &tree){
 }
 
 
-static void test_not_contained(const SuffixTree &tree){
+static void test_not_contained(const SuffixTree &tree, const std::string &text){
 	std::cout << "> Testing non contained substrings..." << std::endl;
-	const std::string text = tree.get_text();
 	const std::vector<std::string> substrings = {
 		"zoeglfrex",
 		"kraxlburg",
@@ -73,10 +70,10 @@ static void test_suffix_links(const SuffixTree &tree){
 }
 
 
-static void test_tree(const SuffixTree &tree){
-	test_suffixes(tree);
-	test_substrings(tree);
-	test_not_contained(tree);
+static void test_tree(const SuffixTree &tree, const std::string &text){
+	test_suffixes(tree, text);
+	test_substrings(tree, text);
+	test_not_contained(tree, text);
 	test_suffix_links(tree);
 }
 
@@ -90,7 +87,7 @@ static void test_text(const std::string &text){
 	std::cout << "> Building tree..." << std::endl;
 	SuffixTree tree(text);
 	//tree.print();
-	test_tree(tree);
+	test_tree(tree, text);
 }
 
 
@@ -119,7 +116,7 @@ int main(int argc, char **argv){
 		texts.push_back("abracadabra");
 		texts.push_back("bringst du opi opium bringt opium den opi um");
 		texts.push_back("der inder in der inderin drin");
-		texts.push_back("bismarck biss mark, bis mark bismarck biss");
+		texts.push_back("bismarck biss mark bis mark bismarck biss");
 	}
 
 	for(const auto &text : texts){
